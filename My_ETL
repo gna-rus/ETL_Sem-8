@@ -12,9 +12,10 @@
 
 import pandas as pd
 import requests
-# import numpy as np
+import sqlalchemy
 import csv
 import os
+import sqlalchemy
 
 
 def download_df(url, name):
@@ -53,29 +54,49 @@ def my_exchange_rate(row):
         row['currency'] = 'EUR'
     return row
 
-# ссылки на файлы из интернета
-url_boking = 'https://gbcdn.mrgcdn.ru/uploads/asset/5551670/attachment/6257a083503973164c0bb0571d41d9e8.csv'
-url_client = 'https://gbcdn.mrgcdn.ru/uploads/asset/5551674/attachment/7c6bf202bd10996ca60a2593f755d4f4.csv'
-url_hotel = 'https://gbcdn.mrgcdn.ru/uploads/asset/5551688/attachment/3ed446d2c750d05b6c177f62641af670.csv'
+def create_engine(user, password, host, port, database):
+    url = f'mysql+pymysql://{user}:{password}@{host}:{port}/{database}'
+    print(url)
+    engine = sqlalchemy.create_engine(url)
+    return engine
 
-list_url = [url_boking, url_client, url_hotel]
-list_name = ['boking', 'client', 'hotel'] # Список имен для файлов
+def to_SQL(df):
+    """Функция для загрузки данных в локальную базу данных"""
+    user = "root"
+    password = "rackot123"
+    host = "127.0.0.1"
+    port = 3306
+    database = "ETL"
 
-# Скачиваю файлы из интернета и загружаю их в директорию с проектом
-for i, j in zip(list_url, list_name):
-    download_df(i, j)
+    engine = create_engine(user, password, host, port, database)
+    print(123)
+    df.to_sql('my_table', con=engine, if_exists='replace', index=False)
 
 
-df_booking = pd.read_csv(r'.\\df\\boking.csv')
-df_hotel = pd.read_csv(r'.\\df\\hotel.csv')
-df_client = pd.read_csv(r'.\\df\\client.csv')
+if __name__ == "__main__":
+    # ссылки на файлы из интернета
+    url_boking = 'https://gbcdn.mrgcdn.ru/uploads/asset/5551670/attachment/6257a083503973164c0bb0571d41d9e8.csv'
+    url_client = 'https://gbcdn.mrgcdn.ru/uploads/asset/5551674/attachment/7c6bf202bd10996ca60a2593f755d4f4.csv'
+    url_hotel = 'https://gbcdn.mrgcdn.ru/uploads/asset/5551688/attachment/3ed446d2c750d05b6c177f62641af670.csv'
+
+    list_url = [url_boking, url_client, url_hotel]
+    list_name = ['boking', 'client', 'hotel'] # Список имен для файлов
+
+    # Скачиваю файлы из интернета и загружаю их в директорию с проектом
+    for i, j in zip(list_url, list_name):
+        download_df(i, j)
 
 
-merged_df_client_booking = pd.merge(df_client, df_booking, on='client_id', how='inner') # Обьединяю client и booking
-df_all = pd.merge(merged_df_client_booking, df_hotel, on='hotel_id', how='inner') # Обьединяю все три таблицы в одну
+    df_booking = pd.read_csv(r'.\\df\\boking.csv')
+    df_hotel = pd.read_csv(r'.\\df\\hotel.csv')
+    df_client = pd.read_csv(r'.\\df\\client.csv')
 
-result = df_all.apply(my_datatime, axis=1)
-result['booking_date'] = pd.to_datetime(result['booking_date'])
-result_in_EUR = result.apply(my_exchange_rate, axis=1).drop(columns=['client_id'])
 
-print(result_in_EUR)
+    merged_df_client_booking = pd.merge(df_client, df_booking, on='client_id', how='inner') # Обьединяю client и booking
+    df_all = pd.merge(merged_df_client_booking, df_hotel, on='hotel_id', how='inner') # Обьединяю все три таблицы в одну
+
+    result = df_all.apply(my_datatime, axis=1)
+    result['booking_date'] = pd.to_datetime(result['booking_date'])
+    result_in_EUR = result.apply(my_exchange_rate, axis=1).drop(columns=['client_id'])
+    to_SQL(result_in_EUR)
+    print(result_in_EUR)
